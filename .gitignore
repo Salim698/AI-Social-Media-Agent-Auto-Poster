@@ -1,0 +1,10 @@
+# Env variables
+.env
+.env.local
+
+# n8n specific
+*.n8n
+
+# OS files
+.DS_Store
+Thumbs.db
