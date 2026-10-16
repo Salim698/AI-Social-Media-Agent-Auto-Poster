@@ -1,0 +1,326 @@
+{
+  "name": "AI Social Media Agent - Auto Poster",
+  "nodes": [
+    {
+      "id": "trigger-schedule",
+      "name": "⏱️ Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-5200, 1824],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c068c80f-8560-4cb7-8c12-e69bb476c729",
+      "name": "💡 Piocher une Idée",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-4896, 1824],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "idees_posts",
+        "limit": 1,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "statut",
+              "condition": "eq",
+              "keyValue": "nouveau"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "38d7da9b-e671-4c38-9a1f-ca6607aded47",
+      "name": "🧠 Lire Profil Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-4496, 1760],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "profil",
+        "limit": 1,
+        "filterType": "none"
+      }
+    },
+    {
+      "id": "041f5632-2b09-447d-b06a-7a6f93213237",
+      "name": "📚 Lire Historique Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-4144, 1872],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "historique_posts",
+        "limit": 3,
+        "filterType": "none"
+      }
+    },
+    {
+      "id": "fc7d3e79-4092-4c30-a078-8208349cd525",
+      "name": "✍️ Construire Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-3664, 1696],
+      "parameters": {
+        "jsCode": "const profilNode = $('🧠 Lire Profil Supabase').first();\nconst ideeNode = $('💡 Piocher une Idée').first();\nconst histoNodes = $('📚 Lire Historique Supabase').all();\n\nconst profil = profilNode ? profilNode.json : {};\nconst idee = ideeNode ? ideeNode.json : {};\nconst histo = histoNodes || [];\n\nconst business = profil.business || \"Expert Tech & IA\";\nconst style = profil.style || \"Educatif et moderne\";\nconst ton = profil.ton || \"Simple et humain\";\nconst mission = profil.mission || \"\";\nconst sujets = profil.sujets || \"\";\nconst categories = profil.categories || \"\";\nconst publicCible = profil.public_cible || \"Passionnés de technologie\";\nconst objectifPrincipal = profil.objectif_principal || \"\";\nconst motsInterdits = profil.mots_interdits || \"\";\nconst styleInterdit = profil.style_interdit || \"\";\nconst reglesImportantes = profil.regles_importantes || \"\";\nconst typeContenu = profil.type_contenu || \"Posts éducatifs\";\n\nconst sujetDuJour =\nidee.sujet_detaille ||\n\"Parle d'une nouveauté technologique utile\";\n\nlet derniersPostsArray = [];\n\nfor (const item of histo) {\nconst raw = item.json?.contenu || \"\";\ntry {\nconst parsed = JSON.parse(raw);\nderniersPostsArray.push(parsed.content || raw);\n} catch (e) {\nderniersPostsArray.push(raw);\n}\n}\n\nconst derniersPosts =\nderniersPostsArray.slice(0, 5).join(\" | \") ||\n\"Aucun post precedent\";\n\nconst prompt = `\nTu es un créateur de contenu tech moderne, crédible et intelligent.\n\nIDENTITE :\n${business}\n\nMISSION :\n${mission}\n\nSTYLE :\n${style}\n\nTON :\n${ton}\n\nSUJETS :\n${sujets}\n\nCATEGORIES :\n${categories}\n\nPUBLIC CIBLE :\n${publicCible}\n\nOBJECTIF :\n${objectifPrincipal}\n\nTYPE DE CONTENU :\n${typeContenu}\n\nSUJET DU JOUR :\n${sujetDuJour}\n\nDERNIERS POSTS A EVITER :\n${derniersPosts}\n\nREGLES IMPORTANTES :\n${reglesImportantes}\n\nSTYLE INTERDIT :\n${styleInterdit}\n\nMOTS INTERDITS :\n${motsInterdits}\n\nOBJECTIF :\n\nCréer un post Facebook moderne, utile et agréable à lire.\n\nLe post doit :\n\n* sembler humain\n* être crédible\n* être simple\n* être utile immédiatement\n* être facile à lire sur mobile\n* donner envie de suivre la page\n* donner envie de partager\n\nLe post NE DOIT PAS :\n\n* ressembler à du spam\n* ressembler à un faux gourou\n* utiliser des promesses irréalistes\n* utiliser trop d'emojis\n\nSTYLE FACEBOOK :\n\n* Paragraphes courts\n* Français fluide\n* Ton naturel\n* Maximum 2 emojis utiles\n* Très lisible mobile\n\nLONGUEUR :\nEntre 700 et 1400 caractères maximum.\n\nIMPORTANT :\nRéponds UNIQUEMENT avec un JSON valide :\n\n{\"content\":\"texte ici\"}\n`;\n\nconst geminiBody = JSON.stringify({\ncontents: [\n{\nparts: [\n{\ntext: prompt\n}\n]\n}\n],\ngenerationConfig: {\ntemperature: 0.85,\ntopP: 0.95,\ntopK: 40,\nmaxOutputTokens: 2048\n}\n});\n\nreturn [\n{\njson: {\ngemini_body: geminiBody,\nidee_id: idee.id || \"\"\n}\n}\n];"
+      }
+    },
+    {
+      "id": "92d9d1df-17b1-4c2f-a663-e2ccf334b544",
+      "name": "🤖 Gemini API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-3296, 1712],
+      "retryOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ $json.gemini_body }}"
+      }
+    },
+    {
+      "id": "b4460e7d-cb66-4ad8-b840-dd3c441b88b0",
+      "name": "🔍 Parser Réponse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-3088, 1712],
+      "parameters": {
+        "jsCode": "const gemini = $input.first().json;\nconst prev   =$('✍️ Construire Prompt').first().json;\nlet raw = '';\ntry {\n  raw = gemini.candidates[0].content.parts[0].text || '';\n} catch (e) {\n  raw = '';\n}\nraw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\nlet content = '';\ntry {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    const parsed = JSON.parse(match[0]);\n    content = parsed.content || '';\n  }\n} catch (e) {\n  content = raw;\n}\ncontent = content.replace(/\\\\n/g, '\\n').replace(/\\\\\"/g, '\"').replace(/\\\\\\\\/g, '\\\\').replace(/\\n{3,}/g, '\\n\\n').replace(/[ \\t]+/g, ' ').replace(/([a-zA-ZÀ-ÿ])\\s*(Et|Tu|Mais|Car|Donc)\\s*$/i, '').replace(/[\"{\\[]+$/g, '').trim();\nif (content.length > 2200) {\n  content = content.substring(0, 2190) + '...';\n}\nreturn [{\n  json: {\n    content: content,\n    idee_id: prev.idee_id || ''\n  }\n}];"
+      }
+    },
+    {
+      "id": "0e8e13a1-cec8-4e2f-b0cd-a3f700c0f879",
+      "name": "📤 Make Webhook (Buffer Post)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-2816, 1520],
+      "retryOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MAKE_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "post",
+              "value": "={{ $('🔍 Parser Réponse').first().json.content }}"
+            },
+            {
+              "name": "platforms[0]",
+              "value": "facebook"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b19fde3e-0379-4e04-a277-f97d85161092",
+      "name": "Enregistrer le Post",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-2448, 1424],
+      "parameters": {
+        "tableId": "historique_posts",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "contenu",
+              "fieldValue": "={{ $('🔍 Parser Réponse').first().json.content }}"
+            },
+            {
+              "fieldId": "action",
+              "fieldValue": "post_now"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6eb940b7-ad03-41c2-a5cd-630c3f463179",
+      "name": "Update a row",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-2240, 1424],
+      "parameters": {
+        "operation": "update",
+        "tableId": "idees_posts",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('🔍 Parser Réponse').first().json.idee_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "statut",
+              "fieldValue": "publie"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ae34c5c3-5818-46d0-a623-52b7af3b9c30",
+      "name": "✅ Telegram Confirmer",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [-2032, 1536],
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=✅ *Publié sur Facebook et archivé dans Supabase !*\n\n{{ $('🔍 Parser Réponse').first().json.content.substring(0,250) }}...",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "⏱️ Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "💡 Piocher une Idée",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💡 Piocher une Idée": {
+      "main": [
+        [
+          {
+            "node": "🧠 Lire Profil Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Lire Profil Supabase": {
+      "main": [
+        [
+          {
+            "node": "📚 Lire Historique Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📚 Lire Historique Supabase": {
+      "main": [
+        [
+          {
+            "node": "✍️ Construire Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✍️ Construire Prompt": {
+      "main": [
+        [
+          {
+            "node": "🤖 Gemini API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Gemini API": {
+      "main": [
+        [
+          {
+            "node": "🔍 Parser Réponse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Parser Réponse": {
+      "main": [
+        [
+          {
+            "node": "📤 Make Webhook (Buffer Post)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Make Webhook (Buffer Post)": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer le Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer le Post": {
+      "main": [
+        [
+          {
+            "node": "Update a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a row": {
+      "main": [
+        [
+          {
+            "node": "✅ Telegram Confirmer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
