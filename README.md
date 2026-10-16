@@ -9,33 +9,41 @@ Agent autonome n8n qui génère et publie du contenu sur Facebook via Gemini, Su
 
 * **Pilotage Data-Driven** : Base de données Supabase pour stocker les profils, historiques et idées de posts.
 * **Génération IA Avancée** : Utilisation de l'API Google Gemini avec un prompt ingénierie complexe pour garantir un ton naturel et éviter le spam.
-* **Publication Automatisée** : Connexion à Make pour bypasser les restrictions de publication d'automatisations Facebook.
+* **Publication Automatisée (via Make)** : Connexion à un scénario Make dédié pour interagir avec l'API Facebook Pages et contourner les restrictions d'automatisation.
 * **Monitoring Telegram** : Notifications automatiques pour confirmer les publications.
 
 ## 📐 Architecture
 
 ```mermaid
 graph TD
-A[Schedule Trigger <br/> 5-10x / jour] -->|Déclencheur| B(Supabase: Piocher Idée)
-B --> C(Supabase: Lire Profil)
-C --> D(Supabase: Lire Historique)
-D --> E[Code: Construire Prompt]
-E -->|Requête JSON| F((API Gemini))
-F -->|Réponse texte| G[Code: Parser Réponse JSON]
-G -->|Payload| H((Webhook Make / Facebook))
-H --> I(Supabase: Archiver Post)
-I --> J(Supabase: Mettre à jour statut)
-J --> K((Telegram: Confirmation))
+    subgraph n8n [🤖 Orchestrateur n8n]
+        A[Schedule Trigger <br/> 5-10x / jour] --> B(Supabase: Piocher Idée)
+        B --> C(Supabase: Lire Profil)
+        C --> D(Supabase: Lire Historique)
+        D --> E[Code: Construire Prompt]
+        E --> F((API Gemini))
+        F --> G[Code: Parser Réponse]
+        G --> H[Requête HTTP POST]
+        H --> I(Supabase: Archiver Post)
+        I --> J(Supabase: Mettre à jour statut)
+        J --> K((Telegram: Confirmation))
+    end
+
+    subgraph Make [🟣 Relais Make]
+        L((Webhook Make)) --> M[Module Facebook Pages]
+    end
+
+    H -->|Envoi du Payload JSON| L
 ```
 
 ## 🛠️ Stack Technique
 
 | Technologie | Usage |
 | :--- | :--- |
-| **n8n** | Orchestration du workflow principal |
+| **n8n** | Orchestration du workflow principal et préparation des données |
 | **Supabase** | Base de données (Idées, Profil, Historique) |
 | **Google Gemini API** | Génération du texte structuré |
-| **Make** | Relais de publication Facebook via Webhook |
+| **Make** | Réception du Webhook n8n et publication officielle sur Facebook |
 | **Telegram API** | Alerting & Logs |
 
 ## 🏁 Démarrage Rapide
@@ -43,12 +51,15 @@ J --> K((Telegram: Confirmation))
 1. Clonez ce dépôt ou téléchargez les fichiers JSON.
 2. Créez un fichier `.env` basé sur le modèle `.env.example` fourni.
 3. Importez le `workflow.json` dans votre instance n8n.
-4. Importez le `make-blueprint.json` dans Make.
-5. Consultez `docs/installation.md` pour les détails.
+4. Importez le blueprint `make-blueprint.json` dans Make pour créer le relais de publication.
+5. Consultez `docs/installation.md` pour connecter les deux outils.
 
 ## 📸 Screenshots
 
-*(Ajoutez vos captures d'écran ici)*
+* **Capture n8n** :  
+  ![Capture n8n](images/workflow.png)
+* **Capture Make** :  
+  ![Capture Make](images/make-scenario.png)
 
 ## 📚 Documentation
 
